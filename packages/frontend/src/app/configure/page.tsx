@@ -118,6 +118,7 @@ const defaultSortCriteria: SortBy[] = [
   { quality: false },
   { seeders: false, direction: 'desc' },
   { addon: false },
+  { regexSort: false, direction: 'desc' },
 ];
 
 const defaultResolutions: Resolution[] = [
@@ -177,8 +178,6 @@ export default function Configure() {
   const [minMovieSize, setMinMovieSize] = useState<number | null>(null);
   const [maxEpisodeSize, setMaxEpisodeSize] = useState<number | null>(null);
   const [minEpisodeSize, setMinEpisodeSize] = useState<number | null>(null);
-  const [addonNameInDescription, setAddonNameInDescription] =
-    useState<boolean>(false);
   const [cleanResults, setCleanResults] = useState<boolean>(false);
   const [maxResultsPerResolution, setMaxResultsPerResolution] = useState<
     number | null
@@ -217,6 +216,11 @@ export default function Configure() {
   );
   const [showApiKeyInput, setShowApiKeyInput] = useState<boolean>(false);
   const [manifestUrl, setManifestUrl] = useState<string | null>(null);
+  const [regexFilters, setRegexFilters] = useState<{
+    excludePattern?: string;
+    includePattern?: string;
+  }>({});
+  const [regexSortPattern, setRegexSortPattern] = useState<string>('');
 
   useEffect(() => {
     // get config from the server
@@ -257,7 +261,6 @@ export default function Configure() {
       minMovieSize,
       maxEpisodeSize,
       minEpisodeSize,
-      addonNameInDescription,
       cleanResults,
       maxResultsPerResolution,
       strictIncludeFilters:
@@ -279,6 +282,11 @@ export default function Configure() {
       },
       addons,
       services,
+      regexFilters: (regexFilters.excludePattern || regexFilters.includePattern) ? {
+        excludePattern: regexFilters.excludePattern || undefined,
+        includePattern: regexFilters.includePattern || undefined
+      } : undefined,
+      regexSortPattern: regexSortPattern,
     };
     return config;
   };
@@ -489,7 +497,9 @@ export default function Configure() {
       if (isValueEncrypted(config) || config.startsWith('B-')) {
         throw new Error('Encrypted Config Not Supported');
       } else {
-        decodedConfig = JSON.parse(atob(decodeURIComponent(config)));
+        decodedConfig = JSON.parse(
+          Buffer.from(decodeURIComponent(config), 'base64').toString('utf-8')
+        );
       }
       return decodedConfig;
     }
@@ -545,6 +555,8 @@ export default function Configure() {
           value: filter,
         })) || []
       );
+      setRegexFilters(decodedConfig.regexFilters || {});
+      setRegexSortPattern(decodedConfig.regexSortPattern || '');
 
       setServices(loadValidServices(decodedConfig.services));
       setMaxMovieSize(
@@ -560,7 +572,6 @@ export default function Configure() {
         decodedConfig.minEpisodeSize || decodedConfig.minSize || null
       );
       setAddons(loadValidAddons(decodedConfig.addons));
-      setAddonNameInDescription(decodedConfig.addonNameInDescription || false);
       setCleanResults(decodedConfig.cleanResults || false);
       setMaxResultsPerResolution(decodedConfig.maxResultsPerResolution || null);
       setMediaFlowEnabled(
@@ -1000,6 +1011,84 @@ export default function Configure() {
           </div>
         </div>
 
+        {showApiKeyInput && (
+          <div className={styles.section}>
+            <div>
+              <h2 style={{ padding: '5px', margin: '0px ' }}>Regex Filtering</h2>
+              <p style={{ margin: '5px 0 12px 5px' }}>
+                Configure regex patterns to filter streams. These filters will be applied in addition to keyword filters.
+              </p>
+            </div>
+            <div style={{ marginBottom: '0px' }}>
+              <div className={styles.section}>
+                <h3 style={{ margin: '2px 0 2px 0' }}>Exclude Pattern</h3>
+                <p style={{ margin: '10px 0 10px 0' }}>
+                  Enter a regex pattern to exclude streams. Streams will be excluded if their filename OR indexers match this pattern.
+                </p>
+                <input
+                  type="text"
+                  value={regexFilters.excludePattern || ''}
+                  onChange={(e) => setRegexFilters({
+                    ...regexFilters,
+                    excludePattern: e.target.value
+                  })}
+                  placeholder="Example: \b(0neshot|1XBET)"
+                  className={styles.input}
+                />
+                <p className={styles.helpText}>
+                  Example patterns:
+                  <br />
+                  - \b(0neshot|1XBET|24xHD) (exclude 0neshot, 1XBET, and 24xHD releases)
+                  <br />
+                  - ^.*Hi10.*$ (exclude Hi10 profile releases)
+                </p>
+              </div>
+              <div className={styles.section} style={{ marginBottom: '0px' }}>
+                <h3 style={{ margin: '2px 0 2px 0' }}>Include Pattern</h3>
+                <p style={{ margin: '10px 0 10px 0' }}>
+                  Enter a regex pattern to include streams. Only streams whose filename or indexers match this pattern will be included.
+                </p>
+                <input
+                  type="text"
+                  value={regexFilters.includePattern || ''}
+                  onChange={(e) => setRegexFilters({
+                    ...regexFilters,
+                    includePattern: e.target.value
+                  })}
+                  placeholder="Example: \b(3L|BiZKiT)"
+                  className={styles.input}
+                />
+                <p className={styles.helpText}>
+                  Example patterns:
+                  <br />
+                  - \b(3L|BiZKiT|BLURANiUM) (only include 3L, BiZKiT, and BLURANiUM releases)
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showApiKeyInput && (
+          <div className={styles.section}>
+            <h2 style={{ padding: '5px' }}>Regex Sort Pattern</h2>
+            <p style={{ padding: '5px' }}>
+              Enter a regex pattern to sort streams. This will sort streams based on whether their filename matches the pattern. Matching files will come first in descending order, and last in ascending order.
+            </p>
+            {/* <div className={styles.settingInput}> */}
+            <input
+              type="text"
+              value={regexSortPattern}
+              onChange={(e) => setRegexSortPattern(e.target.value)}
+              placeholder="Example: \b(3L|BiZKiT|BLURANiUM)"
+              style={{
+                width: '97.5%',
+                padding: '5px',
+                marginLeft: '5px',
+              }}
+              className={styles.input}
+            />
+          </div>
+        )}
         <div className={styles.section}>
           <div className={styles.slidersSetting}>
             <div>
@@ -1135,34 +1224,6 @@ export default function Configure() {
             />
           )}
           <FormatterPreview formatter={formatter || 'gdrive'} />
-        </div>
-
-        <div className={styles.section}>
-          <div className={styles.setting}>
-            <div className={styles.settingDescription}>
-              <h2 style={{ padding: '5px' }}>Move Addon Name to Description</h2>
-              <p style={{ padding: '5px' }}>
-                Move the addon name to the description of the stream. This will
-                show <code>AIOStreams</code> as the stream title, but move the
-                name of the addon that the stream is from to the description.
-                This is useful for Vidi users.
-              </p>
-            </div>
-            <div className={styles.checkboxSettingInput}>
-              <input
-                type="checkbox"
-                checked={addonNameInDescription}
-                onChange={(e) => setAddonNameInDescription(e.target.checked)}
-                // move to the right
-                style={{
-                  marginLeft: 'auto',
-                  marginRight: '20px',
-                  width: '25px',
-                  height: '25px',
-                }}
-              />
-            </div>
-          </div>
         </div>
 
         <div className={styles.section}>
